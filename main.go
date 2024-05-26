@@ -14,6 +14,7 @@ type config struct {
 	TelegramBotToken string
 	SchemaDsn        string
 	WebhookUrl       string
+	ImageUrl         string
 }
 
 var env config
@@ -24,7 +25,7 @@ func main() {
 	initConfig()
 	informWebhook()
 	r := gin.Default()
-	r.POST("/handle", listener)
+	r.POST("/", listener)
 	r.Run()
 }
 
@@ -56,6 +57,38 @@ func listener(context *gin.Context) {
 	update := tg.Update{}
 	context.BindJSON(&update)
 	log.Default().Print("Processing update " + strconv.Itoa(update.UpdateID))
+
+	if update.InlineQuery != nil {
+		sendGame(update.InlineQuery.ID)
+	}
+	context.Status(204)
+}
+
+func sendGame(queryId string) {
+
+	var results []interface{}
+
+	results = append(results, tg.InlineQueryResultArticle{
+		ID:          "connect4",
+		Type:        "Article",
+		Title:       "Connect 4",
+		Description: "Play connect 4!",
+		InputMessageContent: tg.InputTextMessageContent{
+			Text: "Challenge them...",
+		},
+	})
+
+	ic := tg.InlineConfig{
+		InlineQueryID: queryId,
+		Results:       results,
+	}
+
+	result, err := botapi.Request(ic)
+	if err != nil {
+		log.Default().Println("Failed to call tg API - " + err.Error())
+	} else if !result.Ok {
+		log.Default().Println("Error response from tg API " + strconv.Itoa(result.ErrorCode) + " " + result.Description)
+	}
 }
 
 func initConfig() {
