@@ -13,16 +13,43 @@ import (
 type config struct {
 	TelegramBotToken string
 	SchemaDsn        string
-	Foo              string
+	WebhookUrl       string
 }
 
 var env config
 
+var botapi *tg.BotAPI
+
 func main() {
 	initConfig()
+	informWebhook()
 	r := gin.Default()
 	r.POST("/handle", listener)
 	r.Run()
+}
+
+func informWebhook() {
+	var err error
+	botapi, err = tg.NewBotAPI(env.TelegramBotToken)
+	if err != nil {
+		panic("Failed to authorize tg - " + err.Error())
+	}
+
+	wh, webhookerr := tg.NewWebhook(env.WebhookUrl)
+	if webhookerr != nil {
+		panic("Failed to initialize webhook - " + webhookerr.Error())
+	}
+	wh.AllowedUpdates = append(wh.AllowedUpdates, "inline_query", "callback_query")
+
+	resp, responseError := botapi.Request(wh)
+	if responseError != nil {
+		panic("Failed calling tg api: " + responseError.Error())
+	}
+
+	if !resp.Ok {
+		panic("Bad response from tg: " + strconv.Itoa(resp.ErrorCode) + " - " + resp.Description)
+	}
+	log.Default().Println("Successfully initialized webhook.")
 }
 
 func listener(context *gin.Context) {
