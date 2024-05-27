@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"database/sql"
+	"io"
 	"log"
 	"strconv"
 
@@ -15,14 +18,27 @@ type config struct {
 	SchemaDsn        string
 	WebhookUrl       string
 	ImageUrl         string
+	Debug            bool `default:"false"`
 }
 
 var env config
 
 var botapi *tg.BotAPI
 
+var db *sql.DB
+
+// not consts as they are passed as references downstream.
+// effectively consts.
+var QUIT_CODE string = "q"
+var JOIN_CODE string = "j"
+
 func main() {
 	initConfig()
+	var dbError error
+	db, dbError = InitDb(env.SchemaDsn)
+	if dbError != nil {
+		panic("Failed to init sqlite - " + dbError.Error())
+	}
 	informWebhook()
 	r := gin.Default()
 	r.POST("/", listener)
@@ -54,40 +70,28 @@ func informWebhook() {
 }
 
 func listener(context *gin.Context) {
+	if env.Debug {
+		chars, _ := io.ReadAll(context.Request.Body)
+		log.Default().Println(string(chars))
+		context.Request.Body = io.NopCloser(bytes.NewReader(chars))
+	}
 	update := tg.Update{}
 	context.BindJSON(&update)
 	log.Default().Print("Processing update " + strconv.Itoa(update.UpdateID))
 
 	if update.InlineQuery != nil {
-		sendGame(update.InlineQuery.ID)
+		JoinQuit(update.InlineQuery.ID, update.SentFrom().FirstName)
+	} else if update.CallbackQuery != nil {
+		handleInput(&update)
 	}
 	context.Status(204)
 }
 
-func sendGame(queryId string) {
-
-	var results []interface{}
-
-	results = append(results, tg.InlineQueryResultArticle{
-		ID:          "connect4",
-		Type:        "Article",
-		Title:       "Connect 4",
-		Description: "Play connect 4!",
-		InputMessageContent: tg.InputTextMessageContent{
-			Text: "Challenge them...",
-		},
-	})
-
-	ic := tg.InlineConfig{
-		InlineQueryID: queryId,
-		Results:       results,
-	}
-
-	result, err := botapi.Request(ic)
-	if err != nil {
-		log.Default().Println("Failed to call tg API - " + err.Error())
-	} else if !result.Ok {
-		log.Default().Println("Error response from tg API " + strconv.Itoa(result.ErrorCode) + " " + result.Description)
+func handleInput(update *tg.Update) {
+	if update.CallbackQuery.Data == JOIN_CODE {
+		PlayKick(botapi, update)
+	} else if update.CallbackQuery.Data == QUIT_CODE {
+		log.Default().Println("Quit")
 	}
 }
 
