@@ -31,6 +31,8 @@ var db *sql.DB
 // effectively consts.
 var QUIT_CODE string = "q"
 var JOIN_CODE string = "j"
+var PLAY_CODE string = "p"
+var KICK_CODE string = "k"
 
 func main() {
 	initConfig()
@@ -56,7 +58,7 @@ func informWebhook() {
 	if webhookerr != nil {
 		panic("Failed to initialize webhook - " + webhookerr.Error())
 	}
-	wh.AllowedUpdates = append(wh.AllowedUpdates, "inline_query", "callback_query")
+	wh.AllowedUpdates = append(wh.AllowedUpdates, "inline_query", "callback_query", "chosen_inline_result")
 
 	resp, responseError := botapi.Request(wh)
 	if responseError != nil {
@@ -80,17 +82,23 @@ func listener(context *gin.Context) {
 	log.Default().Print("Processing update " + strconv.Itoa(update.UpdateID))
 
 	if update.InlineQuery != nil {
-		JoinQuit(update.InlineQuery.ID, update.SentFrom().FirstName)
+		NewGameMessage(update.InlineQuery.ID, update.SentFrom().FirstName)
 	} else if update.CallbackQuery != nil {
 		handleInput(&update)
+	} else if update.ChosenInlineResult != nil {
+		CreateUser(db, update.ChosenInlineResult.From.ID, update.ChosenInlineResult.From.FirstName)
+		CreateGame(db, update)
 	}
 	context.Status(204)
 }
 
 func handleInput(update *tg.Update) {
 	if update.CallbackQuery.Data == JOIN_CODE {
-		PlayKick(botapi, update)
+		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName)
+		JoinGame(db, *update)
+		PlayKickQuit(botapi, update, GetHost(db, update.CallbackQuery.InlineMessageID))
 	} else if update.CallbackQuery.Data == QUIT_CODE {
+		LeaveGame(db, *update)
 		log.Default().Println("Quit")
 	}
 }

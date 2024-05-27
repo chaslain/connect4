@@ -7,24 +7,29 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func PlayKick(bot *tgbotapi.BotAPI, update *tgbotapi.Update) {
+func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string) {
 	buttons := make([]tgbotapi.InlineKeyboardButton, 2)
+
 	buttons[0] = tgbotapi.InlineKeyboardButton{
-		Text:         "Play",
-		CallbackData: &JOIN_CODE,
+		Text:         "Kick",
+		CallbackData: &KICK_CODE,
 	}
 
 	buttons[1] = tgbotapi.InlineKeyboardButton{
-		Text:         "Kick",
+		Text:         "Quit",
 		CallbackData: &QUIT_CODE,
 	}
 
 	allButtons := [][]tgbotapi.InlineKeyboardButton{}
 
 	allButtons = append(allButtons, buttons)
+	allButtons = append(allButtons, []tgbotapi.InlineKeyboardButton{{
+		Text:         "Play",
+		CallbackData: &PLAY_CODE,
+	}})
 
 	conf := tgbotapi.EditMessageTextConfig{
-		Text: update.CallbackQuery.From.FirstName + " has joined.",
+		Text: host + " vs " + update.CallbackQuery.From.FirstName,
 		BaseEdit: tgbotapi.BaseEdit{
 			InlineMessageID: update.CallbackQuery.InlineMessageID,
 			ReplyMarkup: &tgbotapi.InlineKeyboardMarkup{
@@ -39,7 +44,7 @@ func PlayKick(bot *tgbotapi.BotAPI, update *tgbotapi.Update) {
 	}
 }
 
-func JoinQuit(queryId string, username string) {
+func NewGameMessage(queryId string, username string) {
 
 	var results []interface{}
 
