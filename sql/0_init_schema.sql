@@ -14,6 +14,8 @@ CREATE TABLE game (
     date_created DATETIME NOT NULL,
     date_completed DATETIME,
     player_one_win BOOLEAN,
+    move_number INT,
+    game_board TEXT,
     PRIMARY KEY (hosted_message_id),
     CONSTRAINT fk_game_user FOREIGN KEY (one_user_tg_id) REFERENCES user (tg_id),
     CONSTRAINT fk_game_user2 FOREIGN KEY (two_user_tg_id) REFERENCES user (tg_id)

@@ -98,8 +98,38 @@ func handleInput(update *tg.Update) {
 		JoinGame(db, *update)
 		PlayKickQuit(botapi, update, GetHost(db, update.CallbackQuery.InlineMessageID))
 	} else if update.CallbackQuery.Data == QUIT_CODE {
-		LeaveGame(db, *update)
-		log.Default().Println("Quit")
+		if LeaveGame(db, *update) {
+			Empty(botapi, update)
+		} else {
+			NewGameMessageCallback(update, GetHost(db, update.CallbackQuery.InlineMessageID))
+		}
+	} else if update.CallbackQuery.Data == PLAY_CODE {
+		board := EmptyBoard()
+		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board))
+		GameBoard(update, board)
+	} else {
+		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
+		hostMove := move_number%2 == 1
+
+		if update.CallbackQuery.From.ID != host && hostMove {
+			return
+		} else if !hostMove && update.CallbackQuery.From.ID != guest {
+			return
+		}
+
+		board := GetGame(game)
+		column, _ := strconv.Atoi(update.CallbackQuery.Data)
+
+		if hostMove {
+			PlayMove(&board, column, 1)
+		} else {
+			PlayMove(&board, column, 2)
+		}
+
+		game = GetSerial(board)
+
+		UpdateState(db, update.CallbackQuery.InlineMessageID, game)
+		GameBoard(update, board)
 	}
 }
 
