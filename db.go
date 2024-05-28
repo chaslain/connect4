@@ -35,8 +35,8 @@ func JoinGame(db *sql.DB, update tgbotapi.Update) {
 	db.Exec(query, update.CallbackQuery.From.ID, update.CallbackQuery.InlineMessageID)
 }
 
-func GetHost(db *sql.DB, InlineMessageID string) string {
-	q := `SELECT a.first_name
+func GetHostId(db *sql.DB, InlineMessageID string) int64 {
+	q := `SELECT a.tg_id
 		    FROM user a
 			JOIN game b ON (a.tg_id = b.one_user_tg_id)
 			WHERE b.hosted_message_id = ?
@@ -44,15 +44,33 @@ func GetHost(db *sql.DB, InlineMessageID string) string {
 
 	r := db.QueryRow(q, InlineMessageID)
 
-	var result string
+	var result int64
 	e := r.Scan(&result)
+	if e != nil {
+		log.Default().Println(e.Error())
+	}
+	return result
+}
+
+func GetPlayerNames(db *sql.DB, InlineMessageID string) (string, string) {
+	q := `SELECT a.first_name, c.first_name
+		    FROM user a
+			JOIN game b ON (a.tg_id = b.one_user_tg_id)
+			JOIN user c ON (b.two_user_tg_id = c.tg_id)
+			WHERE b.hosted_message_id = ?
+	`
+
+	r := db.QueryRow(q, InlineMessageID)
+
+	var result, result2 string
+	e := r.Scan(&result, &result2)
 	if e == nil {
 		log.Default().Println("Host found: " + result)
-		return result
+		return result, result2
 	} else {
 		log.Default().Println(e.Error())
 	}
-	return ""
+	return result, result2
 }
 
 func LeaveGame(db *sql.DB, update tgbotapi.Update) bool {
@@ -83,8 +101,15 @@ func UpdateState(db *sql.DB, gameId string, serialized string) {
 	db.Exec(query, serialized, gameId)
 }
 
+func CloseGame(db *sql.DB, gameId string, serialized string, hostWins bool) {
+	query := "UPDATE game SET player_one_win = ? WHERE hosted_message_id = ?"
+
+	db.Exec(query, hostWins, gameId)
+	UpdateState(db, gameId, serialized)
+}
+
 func ReadGame(db *sql.DB, gameId string) (int64, int64, string, int) {
-	query := "SELECT game_board, one_user_tg_id, two_user_tg_id, move_number FROM game WHERE hosted_message_id = ?"
+	query := "SELECT game_board, one_user_tg_id, two_user_tg_id, move_number FROM game WHERE hosted_message_id = ? AND player_one_win IS NULL"
 	var game string
 	var host int64
 	var guest int64

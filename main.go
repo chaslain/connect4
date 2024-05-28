@@ -58,6 +58,7 @@ func informWebhook() {
 	if webhookerr != nil {
 		panic("Failed to initialize webhook - " + webhookerr.Error())
 	}
+	wh.DropPendingUpdates = true
 	wh.AllowedUpdates = append(wh.AllowedUpdates, "inline_query", "callback_query", "chosen_inline_result")
 
 	resp, responseError := botapi.Request(wh)
@@ -96,17 +97,24 @@ func handleInput(update *tg.Update) {
 	if update.CallbackQuery.Data == JOIN_CODE {
 		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName)
 		JoinGame(db, *update)
-		PlayKickQuit(botapi, update, GetHost(db, update.CallbackQuery.InlineMessageID))
+		host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		PlayKickQuit(botapi, update, host)
 	} else if update.CallbackQuery.Data == QUIT_CODE {
 		if LeaveGame(db, *update) {
 			Empty(botapi, update)
 		} else {
-			NewGameMessageCallback(update, GetHost(db, update.CallbackQuery.InlineMessageID))
+			host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+			NewGameMessageCallback(update, host)
 		}
 	} else if update.CallbackQuery.Data == PLAY_CODE {
+		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
+		if hostId != update.CallbackQuery.From.ID {
+			return
+		}
 		board := EmptyBoard()
 		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board))
-		GameBoard(update, board)
+		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		GameBoard(update, board, hostName, guestName)
 	} else {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
 		hostMove := move_number%2 == 1
@@ -120,16 +128,32 @@ func handleInput(update *tg.Update) {
 		board := GetGame(game)
 		column, _ := strconv.Atoi(update.CallbackQuery.Data)
 
+		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+
 		if hostMove {
-			PlayMove(&board, column, 1)
+			if !PlayMove(&board, column, 1) {
+				return
+			}
+			if CheckForWin(&board, column, 1) {
+				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
+				CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), true)
+				return
+			}
 		} else {
-			PlayMove(&board, column, 2)
+			if !PlayMove(&board, column, 2) {
+				return
+			}
+			if CheckForWin(&board, column, 2) {
+				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
+				CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), false)
+				return
+			}
 		}
 
 		game = GetSerial(board)
 
 		UpdateState(db, update.CallbackQuery.InlineMessageID, game)
-		GameBoard(update, board)
+		GameBoard(update, board, hostName, guestName)
 	}
 }
 

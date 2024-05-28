@@ -20,6 +20,10 @@ func Empty(bot *tgbotapi.BotAPI, update *tgbotapi.Update) {
 	bot.Request(request)
 }
 
+func getGameText(host string, guest string) string {
+	return host + " (🔴) vs " + guest + "(🔵)"
+}
+
 func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string) {
 	buttons := make([]tgbotapi.InlineKeyboardButton, 2)
 
@@ -42,7 +46,7 @@ func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string) {
 	}})
 
 	conf := tgbotapi.EditMessageTextConfig{
-		Text: host + " vs " + update.CallbackQuery.From.FirstName,
+		Text: getGameText(host, update.CallbackQuery.From.FirstName),
 		BaseEdit: tgbotapi.BaseEdit{
 			InlineMessageID: update.CallbackQuery.InlineMessageID,
 			ReplyMarkup: &tgbotapi.InlineKeyboardMarkup{
@@ -56,13 +60,11 @@ func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string) {
 		log.Default().Println(e.Error())
 	}
 }
-
-func GameBoard(update *tgbotapi.Update, board Board) {
+func rawGameBoard(update *tgbotapi.Update, board Board) tgbotapi.EditMessageTextConfig {
 	request := tgbotapi.EditMessageTextConfig{
 		BaseEdit: tgbotapi.BaseEdit{
 			InlineMessageID: update.CallbackQuery.InlineMessageID,
 		},
-		Text: "ENGAYGED",
 	}
 
 	buttons := make([][]tgbotapi.InlineKeyboardButton, 6)
@@ -74,9 +76,9 @@ func GameBoard(update *tgbotapi.Update, board Board) {
 
 			if len(board.Columns[j].Rows) > i {
 				if board.Columns[j].Rows[i] == 1 {
-					text = "B"
+					text = "🔵"
 				} else {
-					text = "R"
+					text = "🔴"
 				}
 			}
 			data := strconv.Itoa(j)
@@ -93,6 +95,13 @@ func GameBoard(update *tgbotapi.Update, board Board) {
 		InlineKeyboard: buttons,
 	}
 
+	return request
+}
+
+func GameBoard(update *tgbotapi.Update, board Board, host string, guest string) {
+	request := rawGameBoard(update, board)
+	request.Text = getGameText(host, guest)
+
 	resp, e := botapi.Request(request)
 
 	if e != nil {
@@ -102,7 +111,12 @@ func GameBoard(update *tgbotapi.Update, board Board) {
 	if !resp.Ok {
 		log.Default().Println(strconv.Itoa(resp.ErrorCode) + " " + resp.Description)
 	}
+}
 
+func FinishGame(update *tgbotapi.Update, board Board, winner string, host string, guest string) {
+	request := rawGameBoard(update, board)
+	request.Text = getGameText(host, guest) + "\n" + winner + " Wins!"
+	botapi.Request(request)
 }
 
 func NewGameMessageCallback(update *tgbotapi.Update, host string) {

@@ -63,17 +63,122 @@ func GetSerial(board Board) string {
 }
 
 func PlayMove(board *Board, column int, player int) bool {
-	if column > 8 {
+	if column > 7 {
 		return false
 	}
 	col := &board.Columns[column]
 
 	piecesPlayed := len(col.Rows)
 
-	if piecesPlayed == 8 {
+	if piecesPlayed == 6 {
 		return false
 	}
 
 	col.Rows = append(col.Rows, player)
 	return true
+}
+
+func CheckForWin(board *Board, column int, player int) bool {
+	row := len(board.Columns[column].Rows) - 1
+	target := board.Columns[column].Rows[row]
+
+	return checkDiagnoalDescending(board, column, row, target) ||
+		checkHorizontal(board, row, target) ||
+		checkDiagnoalAscending(board, column, row, target) ||
+		checkVertical(board, column, row, target)
+}
+
+func checkHorizontal(board *Board, row int, target int) bool {
+	count := 0
+	for i := 0; i < 8; i++ {
+		if len(board.Columns[i].Rows) <= row {
+			continue
+		}
+		if target == board.Columns[i].Rows[row] {
+			count++
+			if count > 3 {
+				return true
+			}
+		} else {
+			count = 0
+		}
+	}
+
+	return false
+}
+
+func checkDiagnoalDescending(board *Board, column int, row int, target int) bool {
+	count := 0
+
+	for column > 0 && row < 5 {
+		column--
+		row++
+	}
+
+	for column < 7 && row >= 0 {
+		if len(board.Columns[column].Rows) <= row {
+			column++
+			row--
+			continue
+		}
+		if board.Columns[column].Rows[row] == target {
+			count++
+			if count > 3 {
+				return true
+			}
+		} else {
+			count = 0
+		}
+		column++
+		row--
+	}
+
+	return false
+}
+
+func checkDiagnoalAscending(board *Board, column int, row int, target int) bool {
+	count := 0
+
+	// go the edge of the board
+	for row > 0 && column > 0 {
+		row--
+		column--
+	}
+
+	for column < 8 && row < 7 {
+		if len(board.Columns[column].Rows) <= row {
+			column++
+			row++
+			continue
+		}
+		if board.Columns[column].Rows[row] == target {
+			count++
+			if count > 3 {
+				return true
+			}
+		} else {
+			count = 0
+		}
+		column++
+		row++
+	}
+
+	return false
+}
+
+func checkVertical(board *Board, column int, row int, target int) bool {
+	count := 0
+	for row >= 0 {
+		if target != board.Columns[column].Rows[row] {
+			return false
+		} else {
+			count++
+			if count > 3 {
+				return true
+			}
+		}
+		row--
+	}
+
+	return false
 }
