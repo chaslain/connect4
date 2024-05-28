@@ -115,6 +115,13 @@ func handleInput(update *tg.Update) {
 		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board))
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		GameBoard(update, board, hostName, guestName)
+	} else if update.CallbackQuery.Data == KICK_CODE {
+		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
+		if hostId != update.CallbackQuery.From.ID {
+			return
+		}
+
+		NewGameMessageCallback(update, update.CallbackQuery.From.FirstName)
 	} else {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
 		hostMove := move_number%2 == 1
