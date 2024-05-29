@@ -19,6 +19,8 @@ type config struct {
 	WebhookUrl       string
 	ImageUrl         string
 	Debug            bool `default:"false"`
+	BaseElo          int
+	EloK             float32
 }
 
 var env config
@@ -83,7 +85,8 @@ func listener(context *gin.Context) {
 	log.Default().Print("Processing update " + strconv.Itoa(update.UpdateID))
 
 	if update.InlineQuery != nil {
-		NewGameMessage(update.InlineQuery.ID, update.SentFrom().FirstName)
+		elo := QueryPlayerElo(db, update.InlineQuery.From.ID)
+		NewGameMessage(update.InlineQuery.ID, update.SentFrom().FirstName+parenthesizeInt(elo))
 	} else if update.CallbackQuery != nil {
 		handleInput(&update)
 	} else if update.ChosenInlineResult != nil {
@@ -97,8 +100,9 @@ func handleInput(update *tg.Update) {
 	if update.CallbackQuery.Data == JOIN_CODE {
 		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName)
 		JoinGame(db, *update)
-		host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
-		PlayKickQuit(botapi, update, host)
+		host, guest := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
+		PlayKickQuit(botapi, update, host+" "+parenthesizeInt(a), guest+" "+parenthesizeInt(b))
 	} else if update.CallbackQuery.Data == QUIT_CODE {
 		if LeaveGame(db, *update) {
 			Empty(botapi, update)
@@ -109,15 +113,18 @@ func handleInput(update *tg.Update) {
 	} else if update.CallbackQuery.Data == PLAY_CODE {
 		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
 		if hostId != update.CallbackQuery.From.ID {
+			SendInvalid(update, "Nah fam")
 			return
 		}
 		board := EmptyBoard()
 		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board))
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
-		GameBoard(update, board, hostName, guestName)
+		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
+		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b))
 	} else if update.CallbackQuery.Data == KICK_CODE {
 		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
 		if hostId != update.CallbackQuery.From.ID {
+			SendInvalid(update, "Nah fam")
 			return
 		}
 
@@ -127,8 +134,10 @@ func handleInput(update *tg.Update) {
 		hostMove := move_number%2 == 1
 
 		if update.CallbackQuery.From.ID != host && hostMove {
+			SendInvalid(update, "It is not your turn!")
 			return
 		} else if !hostMove && update.CallbackQuery.From.ID != guest {
+			SendInvalid(update, "It is not your turn!")
 			return
 		}
 
@@ -139,28 +148,41 @@ func handleInput(update *tg.Update) {
 
 		if hostMove {
 			if !PlayMove(&board, column, 1) {
+				SendInvalid(update, "Invalid move!")
 				return
 			}
 			if CheckForWin(&board, column, 1) {
+				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
+				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK)
+				hostName = getFinishData(hostName, olda, a)
+				guestName = getFinishData(guestName, oldb, b)
 				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
-				CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), true)
 				return
 			}
 		} else {
 			if !PlayMove(&board, column, 2) {
+				SendInvalid(update, "Invalid move!")
 				return
 			}
 			if CheckForWin(&board, column, 2) {
+				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
+				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK)
+				hostName = getFinishData(hostName, olda, a)
+				guestName = getFinishData(guestName, oldb, b)
 				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
-				CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), false)
 				return
+			} else {
+				if move_number == 42 {
+					CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 0, env.EloK)
+				}
 			}
 		}
 
 		game = GetSerial(board)
 
+		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 		UpdateState(db, update.CallbackQuery.InlineMessageID, game)
-		GameBoard(update, board, hostName, guestName)
+		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b))
 	}
 }
 
@@ -179,4 +201,20 @@ func initConfig() {
 	}
 
 	log.Default().Print("Successfully loaded configs.")
+}
+
+func parenthesize(data string) string {
+	return "(" + data + ")"
+}
+
+func parenthesizeInt(data int) string {
+	return "(" + strconv.Itoa(data) + ")"
+}
+
+func getFinishData(hostName string, elo int, change float32) string {
+	s := strconv.Itoa(int(change))
+	if change >= 0 {
+		s = "+" + strconv.Itoa(int(change))
+	}
+	return hostName + " " + parenthesize(strconv.Itoa(elo)+s)
 }

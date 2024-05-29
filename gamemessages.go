@@ -24,7 +24,7 @@ func getGameText(host string, guest string) string {
 	return host + " (🔴) vs " + guest + "(🔵)"
 }
 
-func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string) {
+func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string, guest string) {
 	buttons := make([]tgbotapi.InlineKeyboardButton, 2)
 
 	buttons[0] = tgbotapi.InlineKeyboardButton{
@@ -46,7 +46,7 @@ func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string) {
 	}})
 
 	conf := tgbotapi.EditMessageTextConfig{
-		Text: getGameText(host, update.CallbackQuery.From.FirstName),
+		Text: getGameText(host, guest),
 		BaseEdit: tgbotapi.BaseEdit{
 			InlineMessageID: update.CallbackQuery.InlineMessageID,
 			ReplyMarkup: &tgbotapi.InlineKeyboardMarkup{
@@ -199,4 +199,9 @@ func NewGameMessage(queryId string, username string) {
 	} else if !result.Ok {
 		log.Default().Println("Error response from tg API " + strconv.Itoa(result.ErrorCode) + " " + result.Description)
 	}
+}
+
+func SendInvalid(update *tgbotapi.Update, message string) {
+	config := tgbotapi.NewCallbackWithAlert(update.CallbackQuery.ID, message)
+	botapi.Request(config)
 }

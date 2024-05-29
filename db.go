@@ -52,6 +52,23 @@ func GetHostId(db *sql.DB, InlineMessageID string) int64 {
 	return result
 }
 
+func GetGuestId(db *sql.DB, InlineMessageID string) int64 {
+	q := `SELECT a.tg_id
+	FROM user a
+	JOIN game b ON (a.tg_id = b.two_user_tg_id)
+	WHERE b.hosted_message_id = ?
+`
+
+	r := db.QueryRow(q, InlineMessageID)
+
+	var result int64
+	e := r.Scan(&result)
+	if e != nil {
+		log.Default().Println(e.Error())
+	}
+	return result
+}
+
 func GetPlayerNames(db *sql.DB, InlineMessageID string) (string, string) {
 	q := `SELECT a.first_name, c.first_name
 		    FROM user a
@@ -70,7 +87,7 @@ func GetPlayerNames(db *sql.DB, InlineMessageID string) (string, string) {
 	} else {
 		log.Default().Println(e.Error())
 	}
-	return result, result2
+	return "", ""
 }
 
 func LeaveGame(db *sql.DB, update tgbotapi.Update) bool {
@@ -101,15 +118,35 @@ func UpdateState(db *sql.DB, gameId string, serialized string) {
 	db.Exec(query, serialized, gameId)
 }
 
-func CloseGame(db *sql.DB, gameId string, serialized string, hostWins bool) {
-	query := "UPDATE game SET player_one_win = ? WHERE hosted_message_id = ?"
-
-	db.Exec(query, hostWins, gameId)
+func CloseGame(db *sql.DB, gameId string, serialized string, winner int, k float32) (float32, float32) {
 	UpdateState(db, gameId, serialized)
+	return handleElo(db, gameId, winner, k)
+}
+
+func handleElo(db *sql.DB, gameId string, winner int, k float32) (float32, float32) {
+
+	a, b := QueryElo(db, gameId)
+	playerone, playertwo := GetELoAdjustments(a, b, winner, k)
+
+	hostId := GetHostId(db, gameId)
+	guestId := GetGuestId(db, gameId)
+
+	query := `
+		INSERT INTO game_outcome (hosted_message_id, tg_id, elo_adjustment)
+		VALUES (?, ?, ?)
+	`
+	db.Exec(query, gameId, hostId, playerone)
+	db.Exec(query, gameId, guestId, playertwo)
+	UpdateElo(db, hostId)
+	UpdateElo(db, guestId)
+	return playerone, playertwo
 }
 
 func ReadGame(db *sql.DB, gameId string) (int64, int64, string, int) {
-	query := "SELECT game_board, one_user_tg_id, two_user_tg_id, move_number FROM game WHERE hosted_message_id = ? AND player_one_win IS NULL"
+	query := `SELECT game_board, one_user_tg_id, two_user_tg_id, move_number 
+			    FROM game a
+	       LEFT JOIN game_outcome b ON (a.hosted_message_id = b.hosted_message_id)
+			   WHERE a.hosted_message_id = ? AND b.hosted_message_id IS NULL`
 	var game string
 	var host int64
 	var guest int64
@@ -118,4 +155,43 @@ func ReadGame(db *sql.DB, gameId string) (int64, int64, string, int) {
 	data := db.QueryRow(query, gameId)
 	data.Scan(&game, &host, &guest, &move_number)
 	return host, guest, game, move_number
+}
+
+func QueryPlayerElo(db *sql.DB, tg_id int64) int {
+	query := `
+		SELECT elo FROM user WHERE tg_id = ?
+	`
+
+	var result int
+	row := db.QueryRow(query, tg_id)
+	row.Scan(&result)
+	return result
+}
+
+func QueryElo(db *sql.DB, game_id string) (int, int) {
+	query := `
+		SELECT b.elo, c.elo
+		FROM game a
+		JOIN user b ON (a.one_user_tg_id = b.tg_id)
+		LEFT JOIN user c ON (a.two_user_tg_id = c.tg_id)
+		WHERE a.hosted_message_id = ?
+	`
+
+	var result, result2 int
+	row := db.QueryRow(query, game_id)
+	row.Scan(&result, &result2)
+	return result, result2
+}
+
+func UpdateElo(db *sql.DB, tg_user_id int64) {
+	query := `
+		UPDATE user SET elo = 
+		(SELECT SUM(elo_adjustment)
+			  FROM game_outcome
+			 WHERE tg_user_id = ?)
+		WHERE tg_user_id = ?
+	`
+
+	db.Exec(query, tg_user_id, tg_user_id)
+
 }
