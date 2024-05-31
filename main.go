@@ -115,6 +115,9 @@ func handleInput(update *tg.Update) {
 		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName, env.BaseElo)
 		JoinGame(db, *update)
 		host, guest := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		if host == "" || guest == "" {
+			Empty(botapi, update)
+		}
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 		PlayKickQuit(botapi, update, host+" "+parenthesizeInt(a), guest+" "+parenthesizeInt(b))
 	} else if update.CallbackQuery.Data == QUIT_CODE {
@@ -128,6 +131,11 @@ func handleInput(update *tg.Update) {
 		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
 		if hostId != update.CallbackQuery.From.ID {
 			SendInvalid(update, "Nah fam")
+			return
+		}
+		guestId := GetGuestId(db, update.CallbackQuery.InlineMessageID)
+		if guestId == 0 {
+			SendInvalid(update, "They left as soon as you hit join. Sry")
 			return
 		}
 		board := EmptyBoard()
@@ -187,7 +195,12 @@ func handleInput(update *tg.Update) {
 				return
 			} else {
 				if move_number == 42 {
-					CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 1, env.EloK, env.BaseElo)
+					olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
+					a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 0, env.EloK, env.BaseElo)
+					hostName = getFinishData(hostName, olda, a)
+					guestName = getFinishData(guestName, oldb, b)
+					FinishDrawnGame(update, board, hostName, guestName)
+					return
 				}
 			}
 		}

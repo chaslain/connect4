@@ -118,6 +118,12 @@ func GameBoard(update *tgbotapi.Update, board Board, host string, guest string, 
 	}
 }
 
+func FinishDrawnGame(update *tgbotapi.Update, board Board, host string, guest string) {
+	request := rawGameBoard(update, board)
+	request.Text = getGameText(host, guest) + "\n" + "Drawn"
+	botapi.Request(request)
+}
+
 func FinishGame(update *tgbotapi.Update, board Board, winner string, host string, guest string) {
 	request := rawGameBoard(update, board)
 	request.Text = getGameText(host, guest) + "\n" + winner + " Wins!"

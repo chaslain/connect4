@@ -135,6 +135,11 @@ func handleElo(db *sql.DB, gameId string, winner int, k float32, offset int) (fl
 	hostId := GetHostId(db, gameId)
 	guestId := GetGuestId(db, gameId)
 
+	// games against self
+	if hostId == guestId {
+		return 0, 0
+	}
+
 	query := `
 		INSERT INTO game_outcome (hosted_message_id, tg_id, elo_adjustment)
 		VALUES (?, ?, ?)
