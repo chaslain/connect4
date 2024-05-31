@@ -203,15 +203,17 @@ func NewGameMessage(queryId string, username string, top10 string) {
 		},
 	})
 
-	results = append(results, tgbotapi.InlineQueryResultArticle{
-		ID:          "leaderBoard",
-		Type:        "Article",
-		Title:       "Top 10 players",
-		Description: "Top 10 players",
-		InputMessageContent: tgbotapi.InputTextMessageContent{
-			Text: top10,
-		},
-	})
+	if len(top10) > 0 {
+		results = append(results, tgbotapi.InlineQueryResultArticle{
+			ID:          "leaderBoard",
+			Type:        "Article",
+			Title:       "Top 10 players",
+			Description: "Top 10 players",
+			InputMessageContent: tgbotapi.InputTextMessageContent{
+				Text: top10,
+			},
+		})
+	}
 
 	ic := tgbotapi.InlineConfig{
 		InlineQueryID: queryId,
