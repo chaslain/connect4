@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"log"
+	"strconv"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -19,15 +20,18 @@ func InitDb(dsn string) (*sql.DB, error) {
 	return result, nil
 }
 
-func CreateUser(db *sql.DB, tgUserId int64, name string) {
+func CreateUser(db *sql.DB, tgUserId int64, name string, offset int) {
 	date := time.Now()
-	db.Exec("INSERT INTO user (tg_id, date_created, elo, first_name) VALUES (?, ?, 1500, ?)", tgUserId, date, name)
+	db.Exec("INSERT INTO user (tg_id, date_created, elo, first_name) VALUES (?, ?, ?, ?)", tgUserId, date, offset, name)
 }
 
 func CreateGame(db *sql.DB, update tgbotapi.Update) {
 	date := time.Now()
 	query := "INSERT OR REPLACE INTO game (one_user_tg_id, date_created, hosted_message_id, move_number) VALUES (?, ?, ?, ?)"
-	db.Exec(query, update.ChosenInlineResult.From.ID, date, update.ChosenInlineResult.InlineMessageID, 0)
+	_, err := db.Exec(query, update.ChosenInlineResult.From.ID, date, update.ChosenInlineResult.InlineMessageID, 0)
+	if err != nil {
+		log.Default().Println(err.Error())
+	}
 }
 
 func JoinGame(db *sql.DB, update tgbotapi.Update) {
@@ -118,12 +122,12 @@ func UpdateState(db *sql.DB, gameId string, serialized string) {
 	db.Exec(query, serialized, gameId)
 }
 
-func CloseGame(db *sql.DB, gameId string, serialized string, winner int, k float32) (float32, float32) {
+func CloseGame(db *sql.DB, gameId string, serialized string, winner int, k float32, offset int) (float32, float32) {
 	UpdateState(db, gameId, serialized)
-	return handleElo(db, gameId, winner, k)
+	return handleElo(db, gameId, winner, k, offset)
 }
 
-func handleElo(db *sql.DB, gameId string, winner int, k float32) (float32, float32) {
+func handleElo(db *sql.DB, gameId string, winner int, k float32, offset int) (float32, float32) {
 
 	a, b := QueryElo(db, gameId)
 	playerone, playertwo := GetELoAdjustments(a, b, winner, k)
@@ -137,8 +141,8 @@ func handleElo(db *sql.DB, gameId string, winner int, k float32) (float32, float
 	`
 	db.Exec(query, gameId, hostId, playerone)
 	db.Exec(query, gameId, guestId, playertwo)
-	UpdateElo(db, hostId)
-	UpdateElo(db, guestId)
+	UpdateElo(db, hostId, offset)
+	UpdateElo(db, guestId, offset)
 	return playerone, playertwo
 }
 
@@ -157,7 +161,7 @@ func ReadGame(db *sql.DB, gameId string) (int64, int64, string, int) {
 	return host, guest, game, move_number
 }
 
-func QueryPlayerElo(db *sql.DB, tg_id int64) int {
+func QueryPlayerElo(db *sql.DB, tg_id int64, offset int) int {
 	query := `
 		SELECT elo FROM user WHERE tg_id = ?
 	`
@@ -165,6 +169,9 @@ func QueryPlayerElo(db *sql.DB, tg_id int64) int {
 	var result int
 	row := db.QueryRow(query, tg_id)
 	row.Scan(&result)
+	if result == 0 {
+		return offset
+	}
 	return result
 }
 
@@ -183,15 +190,39 @@ func QueryElo(db *sql.DB, game_id string) (int, int) {
 	return result, result2
 }
 
-func UpdateElo(db *sql.DB, tg_user_id int64) {
+func UpdateElo(db *sql.DB, tg_user_id int64, offset int) {
 	query := `
 		UPDATE user SET elo = 
 		(SELECT SUM(elo_adjustment)
 			  FROM game_outcome
-			 WHERE tg_user_id = ?)
-		WHERE tg_user_id = ?
+			 WHERE tg_id = ?) + ?
+		WHERE tg_id = ?
 	`
 
-	db.Exec(query, tg_user_id, tg_user_id)
+	db.Exec(query, tg_user_id, offset, tg_user_id)
 
+}
+
+func Top10LeaderBoard(db *sql.DB) string {
+	sql := `
+		SELECT first_name, elo FROM user ORDER BY elo DESC LIMIT 10
+	`
+
+	data, err := db.Query(sql)
+	if err != nil {
+		log.Default().Println("Error querying top 10: " + err.Error())
+	}
+
+	result := ""
+
+	for i := 0; i < 10; i++ {
+		var elo int
+		var name string
+		if !data.Next() {
+			break
+		}
+		data.Scan(&name, &elo)
+		result += strconv.Itoa(i+1) + " " + name + ": " + strconv.Itoa(elo) + "\n"
+	}
+	return result
 }

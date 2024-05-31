@@ -92,6 +92,7 @@ func checkHorizontal(board *Board, row int, target int) bool {
 	count := 0
 	for i := 0; i < 8; i++ {
 		if len(board.Columns[i].Rows) <= row {
+			count = 0
 			continue
 		}
 		if target == board.Columns[i].Rows[row] {
@@ -119,6 +120,7 @@ func checkDiagnoalDescending(board *Board, column int, row int, target int) bool
 		if len(board.Columns[column].Rows) <= row {
 			column++
 			row--
+			count = 0
 			continue
 		}
 		if board.Columns[column].Rows[row] == target {
@@ -149,6 +151,7 @@ func checkDiagnoalAscending(board *Board, column int, row int, target int) bool 
 		if len(board.Columns[column].Rows) <= row {
 			column++
 			row++
+			count = 0
 			continue
 		}
 		if board.Columns[column].Rows[row] == target {

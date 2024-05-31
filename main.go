@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"io"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/cristalhq/aconfig"
@@ -16,11 +17,14 @@ import (
 type config struct {
 	TelegramBotToken string
 	SchemaDsn        string
-	WebhookUrl       string
 	ImageUrl         string
 	Debug            bool `default:"false"`
 	BaseElo          int
 	EloK             float32
+	Port             string
+	PublicKeyPath    string
+	SslPort          string
+	WebhookURL       string
 }
 
 var env config
@@ -43,20 +47,28 @@ func main() {
 	if dbError != nil {
 		panic("Failed to init sqlite - " + dbError.Error())
 	}
-	informWebhook()
+	informWebhook(env.WebhookURL, env.PublicKeyPath)
 	r := gin.Default()
 	r.POST("/", listener)
 	r.Run()
 }
 
-func informWebhook() {
+func informWebhook(url string, publickey string) {
 	var err error
 	botapi, err = tg.NewBotAPI(env.TelegramBotToken)
 	if err != nil {
 		panic("Failed to authorize tg - " + err.Error())
 	}
 
-	wh, webhookerr := tg.NewWebhook(env.WebhookUrl)
+	keyfile, err := os.Open(publickey)
+
+	if err != nil {
+		panic("Failed to read key file")
+	}
+	wh, webhookerr := tg.NewWebhookWithCert(url, tg.FileReader{
+		Reader: keyfile,
+	})
+
 	if webhookerr != nil {
 		panic("Failed to initialize webhook - " + webhookerr.Error())
 	}
@@ -85,20 +97,22 @@ func listener(context *gin.Context) {
 	log.Default().Print("Processing update " + strconv.Itoa(update.UpdateID))
 
 	if update.InlineQuery != nil {
-		elo := QueryPlayerElo(db, update.InlineQuery.From.ID)
-		NewGameMessage(update.InlineQuery.ID, update.SentFrom().FirstName+parenthesizeInt(elo))
+		elo := QueryPlayerElo(db, update.InlineQuery.From.ID, env.BaseElo)
+		NewGameMessage(update.InlineQuery.ID, update.SentFrom().FirstName+parenthesizeInt(elo), Top10LeaderBoard(db))
 	} else if update.CallbackQuery != nil {
 		handleInput(&update)
 	} else if update.ChosenInlineResult != nil {
-		CreateUser(db, update.ChosenInlineResult.From.ID, update.ChosenInlineResult.From.FirstName)
-		CreateGame(db, update)
+		if update.ChosenInlineResult.ResultID == "connect4" {
+			CreateUser(db, update.ChosenInlineResult.From.ID, update.ChosenInlineResult.From.FirstName, env.BaseElo)
+			CreateGame(db, update)
+		}
 	}
 	context.Status(204)
 }
 
 func handleInput(update *tg.Update) {
 	if update.CallbackQuery.Data == JOIN_CODE {
-		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName)
+		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName, env.BaseElo)
 		JoinGame(db, *update)
 		host, guest := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
@@ -120,7 +134,7 @@ func handleInput(update *tg.Update) {
 		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board))
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
-		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b))
+		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), 0)
 	} else if update.CallbackQuery.Data == KICK_CODE {
 		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
 		if hostId != update.CallbackQuery.From.ID {
@@ -153,7 +167,7 @@ func handleInput(update *tg.Update) {
 			}
 			if CheckForWin(&board, column, 1) {
 				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
-				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK)
+				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK, env.BaseElo)
 				hostName = getFinishData(hostName, olda, a)
 				guestName = getFinishData(guestName, oldb, b)
 				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
@@ -166,14 +180,14 @@ func handleInput(update *tg.Update) {
 			}
 			if CheckForWin(&board, column, 2) {
 				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
-				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK)
+				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 1, env.EloK, env.BaseElo)
 				hostName = getFinishData(hostName, olda, a)
 				guestName = getFinishData(guestName, oldb, b)
 				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
 				return
 			} else {
 				if move_number == 42 {
-					CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 0, env.EloK)
+					CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 1, env.EloK, env.BaseElo)
 				}
 			}
 		}
@@ -182,7 +196,7 @@ func handleInput(update *tg.Update) {
 
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 		UpdateState(db, update.CallbackQuery.InlineMessageID, game)
-		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b))
+		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number)
 	}
 }
 

@@ -21,7 +21,7 @@ func Empty(bot *tgbotapi.BotAPI, update *tgbotapi.Update) {
 }
 
 func getGameText(host string, guest string) string {
-	return host + " (🔴) vs " + guest + "(🔵)"
+	return host + " (🔵) vs " + guest + "(🔴)"
 }
 
 func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string, guest string) {
@@ -98,9 +98,14 @@ func rawGameBoard(update *tgbotapi.Update, board Board) tgbotapi.EditMessageText
 	return request
 }
 
-func GameBoard(update *tgbotapi.Update, board Board, host string, guest string) {
+func GameBoard(update *tgbotapi.Update, board Board, host string, guest string, moveNum int) {
 	request := rawGameBoard(update, board)
-	request.Text = getGameText(host, guest)
+	playerMove := "🔴 " + guest + " to move"
+	if moveNum%2 == 0 {
+		playerMove = "🔵 " + host + " to move"
+	}
+
+	request.Text = getGameText(host, guest) + "\n" + playerMove
 
 	resp, e := botapi.Request(request)
 
@@ -156,7 +161,7 @@ func NewGameMessageCallback(update *tgbotapi.Update, host string) {
 
 }
 
-func NewGameMessage(queryId string, username string) {
+func NewGameMessage(queryId string, username string, top10 string) {
 
 	var results []interface{}
 
@@ -181,16 +186,37 @@ func NewGameMessage(queryId string, username string) {
 		Title:       "Connect 4",
 		Description: "Play connect 4!",
 		InputMessageContent: tgbotapi.InputTextMessageContent{
-			Text: username + " wants to play connect whore",
+			Text: username + " wants to play connect 4",
 		},
 		ReplyMarkup: &tgbotapi.InlineKeyboardMarkup{
 			InlineKeyboard: allButtons,
 		},
 	})
 
+	results = append(results, tgbotapi.InlineQueryResultArticle{
+		ID:          "checkRank",
+		Type:        "Article",
+		Title:       "Rating",
+		Description: "My current connect 4 rating is...",
+		InputMessageContent: tgbotapi.InputTextMessageContent{
+			Text: "My current connect4 rating: " + username,
+		},
+	})
+
+	results = append(results, tgbotapi.InlineQueryResultArticle{
+		ID:          "leaderBoard",
+		Type:        "Article",
+		Title:       "Top 10 players",
+		Description: "Top 10 players",
+		InputMessageContent: tgbotapi.InputTextMessageContent{
+			Text: top10,
+		},
+	})
+
 	ic := tgbotapi.InlineConfig{
 		InlineQueryID: queryId,
 		Results:       results,
+		IsPersonal:    true,
 	}
 
 	result, err := botapi.Request(ic)

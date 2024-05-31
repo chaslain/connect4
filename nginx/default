@@ -1,0 +1,13 @@
+# nginx conf
+
+server {
+    listen 8443 ssl;
+    ssl_certificate /home/alan/pub2;
+    ssl_certificate_key /home/alan/key2;
+    ssl_protocols       TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://localhost:8080;
+    }
+}
