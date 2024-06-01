@@ -198,12 +198,12 @@ func handleInput(update *tg.Update) {
 		olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
 
 		if update.CallbackQuery.From.ID == host {
-			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, 1, env.EloK, env.BaseElo)
+			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, -1, env.EloK, env.BaseElo)
 			hostName = getFinishData(hostName, olda, a)
 			guestName = getFinishData(guestName, oldb, b)
 			FinishGame(update, GetGame(game), guestName, hostName, guestName)
 		} else {
-			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, -1, env.EloK, env.BaseElo)
+			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, 1, env.EloK, env.BaseElo)
 			hostName = getFinishData(hostName, olda, a)
 			guestName = getFinishData(guestName, oldb, b)
 			FinishGame(update, GetGame(game), hostName, hostName, guestName)
@@ -297,7 +297,7 @@ func parenthesizeInt(data int) string {
 	return "(" + strconv.Itoa(data) + ")"
 }
 
-func getFinishData(hostName string, elo int, change float32) string {
+func getFinishData(hostName string, elo int, change int) string {
 	s := strconv.Itoa(int(change))
 	if change >= 0 {
 		s = "+" + strconv.Itoa(int(change))

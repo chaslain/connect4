@@ -123,12 +123,12 @@ func UpdateState(db *sql.DB, gameId string, serialized string) {
 }
 
 // if the host wins, pass 1 for winner. else, -1. 0 for draw
-func CloseGame(db *sql.DB, gameId string, serialized string, winner int, k float32, offset int) (float32, float32) {
+func CloseGame(db *sql.DB, gameId string, serialized string, winner int, k float32, offset int) (int, int) {
 	UpdateState(db, gameId, serialized)
 	return handleElo(db, gameId, winner, k, offset)
 }
 
-func handleElo(db *sql.DB, gameId string, winner int, k float32, offset int) (float32, float32) {
+func handleElo(db *sql.DB, gameId string, winner int, k float32, offset int) (int, int) {
 
 	a, b := QueryElo(db, gameId)
 	playerone, playertwo := GetELoAdjustments(a, b, winner, k)
