@@ -234,7 +234,7 @@ func handleInput(update *tg.Update) {
 			}
 			if CheckForWin(&board, column, 1) {
 				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
-				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK, env.BaseElo)
+				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 1, env.EloK, env.BaseElo)
 				hostName = getFinishData(hostName, olda, a)
 				guestName = getFinishData(guestName, oldb, b)
 				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
@@ -247,7 +247,7 @@ func handleInput(update *tg.Update) {
 			}
 			if CheckForWin(&board, column, 2) {
 				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
-				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 1, env.EloK, env.BaseElo)
+				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK, env.BaseElo)
 				hostName = getFinishData(hostName, olda, a)
 				guestName = getFinishData(guestName, oldb, b)
 				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
