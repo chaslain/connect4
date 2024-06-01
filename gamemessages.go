@@ -67,15 +67,15 @@ func rawGameBoard(update *tgbotapi.Update, board Board) tgbotapi.EditMessageText
 		},
 	}
 
-	buttons := make([][]tgbotapi.InlineKeyboardButton, 6)
+	buttons := make([][]tgbotapi.InlineKeyboardButton, 7)
 
-	for i := 0; i < 6; i++ {
+	for i := 1; i < 7; i++ {
 		column := make([]tgbotapi.InlineKeyboardButton, 7)
 		for j := 0; j < 7; j++ {
 			text := " "
 
-			if len(board.Columns[j].Rows) > i {
-				if board.Columns[j].Rows[i] == 1 {
+			if len(board.Columns[j].Rows) > i-1 {
+				if board.Columns[j].Rows[i-1] == 1 {
 					text = "🔵"
 				} else {
 					text = "🔴"
@@ -88,6 +88,16 @@ func rawGameBoard(update *tgbotapi.Update, board Board) tgbotapi.EditMessageText
 			}
 		}
 		buttons[i] = column
+	}
+	buttons[0] = []tgbotapi.InlineKeyboardButton{
+		{
+			Text:         "Claim Win",
+			CallbackData: &CLAIM_CODE,
+		},
+		{
+			Text:         "Resign",
+			CallbackData: &RESIGN_CODE,
+		},
 	}
 
 	slices.Reverse(buttons)

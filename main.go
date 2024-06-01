@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/cristalhq/aconfig"
 	"github.com/cristalhq/aconfig/aconfigyaml"
@@ -25,6 +26,7 @@ type config struct {
 	PublicKeyPath    string
 	SslPort          string
 	WebhookURL       string
+	KillAge          int
 }
 
 var env config
@@ -39,6 +41,8 @@ var QUIT_CODE string = "q"
 var JOIN_CODE string = "j"
 var PLAY_CODE string = "p"
 var KICK_CODE string = "k"
+var CLAIM_CODE string = "c"
+var RESIGN_CODE string = "r"
 
 func main() {
 	initConfig()
@@ -151,6 +155,61 @@ func handleInput(update *tg.Update) {
 		}
 
 		NewGameMessageCallback(update, update.CallbackQuery.From.FirstName)
+	} else if update.CallbackQuery.Data == CLAIM_CODE {
+		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
+		hostMove := move_number%2 == 1
+		if !hostMove && update.CallbackQuery.From.ID == guest {
+			SendInvalid(update, "Nah fam")
+			return
+		} else if hostMove && update.CallbackQuery.From.ID == host {
+			SendInvalid(update, "Nah fam")
+			return
+		}
+
+		moveTime := ReadGameLastMove(db, update.CallbackQuery.InlineMessageID)
+
+		if moveTime+(int64(env.KillAge)*60) < time.Now().Unix() {
+
+			hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+			winnerName := hostName
+			winner := -1
+			if hostMove {
+				winner = 1
+				winnerName = guestName
+			}
+
+			olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
+			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, winner, env.EloK, env.BaseElo)
+			hostName = getFinishData(hostName, olda, a)
+			guestName = getFinishData(guestName, oldb, b)
+			FinishGame(update, GetGame(game), winnerName, hostName, guestName)
+		} else {
+			SendInvalid(update, "You must wait "+strconv.Itoa(env.KillAge)+" minutes to claim your win.")
+		}
+
+	} else if update.CallbackQuery.Data == RESIGN_CODE {
+		host, guest, game, _ := ReadGame(db, update.CallbackQuery.InlineMessageID)
+
+		if update.CallbackQuery.From.ID != host && update.CallbackQuery.From.ID != guest {
+			SendInvalid(update, "Nah fam")
+		}
+
+		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
+
+		if update.CallbackQuery.From.ID == host {
+			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, 1, env.EloK, env.BaseElo)
+			hostName = getFinishData(hostName, olda, a)
+			guestName = getFinishData(guestName, oldb, b)
+			FinishGame(update, GetGame(game), guestName, hostName, guestName)
+		} else {
+			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, -1, env.EloK, env.BaseElo)
+			hostName = getFinishData(hostName, olda, a)
+			guestName = getFinishData(guestName, oldb, b)
+			FinishGame(update, GetGame(game), hostName, hostName, guestName)
+		}
+		return
+
 	} else {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
 		hostMove := move_number%2 == 1
