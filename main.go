@@ -158,6 +158,12 @@ func handleInput(update *tg.Update) {
 	} else if update.CallbackQuery.Data == CLAIM_CODE {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
 		hostMove := move_number%2 == 1
+
+		if update.CallbackQuery.From.ID != host && update.CallbackQuery.From.ID != guest {
+			SendInvalid(update, "Nah fam")
+			return
+		}
+
 		if !hostMove && update.CallbackQuery.From.ID == guest {
 			SendInvalid(update, "Nah fam")
 			return
@@ -192,6 +198,7 @@ func handleInput(update *tg.Update) {
 
 		if update.CallbackQuery.From.ID != host && update.CallbackQuery.From.ID != guest {
 			SendInvalid(update, "Nah fam")
+			return
 		}
 
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
