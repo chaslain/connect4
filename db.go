@@ -229,6 +229,7 @@ func Top10LeaderBoard(db *sql.DB) string {
 	data, err := db.Query(sql)
 	if err != nil {
 		log.Default().Println("Error querying top 10: " + err.Error())
+		return "(Could not get top 10)"
 	}
 
 	result := ""
@@ -242,5 +243,7 @@ func Top10LeaderBoard(db *sql.DB) string {
 		data.Scan(&name, &elo)
 		result += strconv.Itoa(i+1) + " " + name + ": " + strconv.Itoa(elo) + "\n"
 	}
+
+	data.Close()
 	return result
 }
