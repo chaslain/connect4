@@ -163,7 +163,7 @@ func NewGameMessageCallback(update *tgbotapi.Update, host string) {
 				InlineKeyboard: allButtons,
 			},
 		},
-		Text: host + " wants to play connect whore",
+		Text: host + " wants to play connect 4",
 	}
 
 	resp, e := botapi.Request(request)

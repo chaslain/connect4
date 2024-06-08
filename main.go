@@ -131,10 +131,15 @@ func handleInput(update *tg.Update) {
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 		PlayKickQuit(botapi, update, host+" "+parenthesizeInt(a), guest+" "+parenthesizeInt(b))
 	} else if update.CallbackQuery.Data == QUIT_CODE {
-		if LeaveGame(db, *update) {
+		host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		hostLeft, valid := LeaveGame(db, *update)
+		if !valid {
+			SendInvalid(update, "Nah fam")
+			return
+		}
+		if hostLeft {
 			Empty(botapi, update)
 		} else {
-			host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 			NewGameMessageCallback(update, host)
 		}
 	} else if update.CallbackQuery.Data == PLAY_CODE {

@@ -94,11 +94,14 @@ func GetPlayerNames(db *sql.DB, InlineMessageID string) (string, string) {
 	return "", ""
 }
 
-func LeaveGame(db *sql.DB, update tgbotapi.Update) bool {
+// returns two booleans -
+// first is true if the host left the game, false if guest.
+// the other is true if the leave request was valid at all. No one leaves the game if it is invalid.
+func LeaveGame(db *sql.DB, update tgbotapi.Update) (bool, bool) {
 	query := "SELECT one_user_tg_id, two_user_tg_id FROM game WHERE hosted_message_id = ?"
 	row := db.QueryRow(query, update.CallbackQuery.InlineMessageID)
 	if row == nil {
-		return false
+		return false, false
 	}
 	var one int64
 	var two int64
@@ -106,15 +109,17 @@ func LeaveGame(db *sql.DB, update tgbotapi.Update) bool {
 	row.Scan(&one, &two)
 
 	var updatequery string
-	result := false
 	if update.CallbackQuery.From.ID == one {
 		updatequery = "UPDATE game SET one_user_tg_id = NULL WHERE hosted_message_id = ?"
-		result = true
+		db.Exec(updatequery, update.CallbackQuery.InlineMessageID)
+		return true, true
 	} else if update.CallbackQuery.From.ID == two {
 		updatequery = "UPDATE game SET two_user_tg_id = NULL WHERE hosted_message_id = ?"
+		db.Exec(updatequery, update.CallbackQuery.InlineMessageID)
+		return false, true
+	} else {
+		return false, false
 	}
-	db.Exec(updatequery, update.CallbackQuery.InlineMessageID)
-	return result
 }
 
 func UpdateState(db *sql.DB, gameId string, serialized string) {
