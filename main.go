@@ -107,8 +107,9 @@ func listener(context *gin.Context) {
 	log.Default().Print("Processing update " + strconv.Itoa(update.UpdateID))
 
 	if update.InlineQuery != nil {
-		elo := QueryPlayerElo(db, update.InlineQuery.From.ID, env.BaseElo)
-		NewGameMessage(update.InlineQuery.ID, update.SentFrom().FirstName+parenthesizeInt(elo), Top10LeaderBoard(db))
+		ranking, elo := QueryPlayerRanking(db, update.InlineQuery.From.ID)
+		total := QueryTotalPlayerCount(db)
+		InlineQueryMessage(update.InlineQuery.ID, update.SentFrom().FirstName, ranking, elo, total, Top10LeaderBoard(db))
 	} else if update.CallbackQuery != nil {
 		handleInput(&update)
 	} else if update.ChosenInlineResult != nil {

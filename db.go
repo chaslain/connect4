@@ -184,6 +184,36 @@ func ReadGame(db *sql.DB, gameId string) (int64, int64, string, int) {
 	return host, guest, game, move_number
 }
 
+// get total players
+func QueryTotalPlayerCount(db *sql.DB) int {
+	query := "SELECT COUNT(*) FROM user"
+	var result int
+	row := db.QueryRow(query)
+	row.Scan(&result)
+	return result
+}
+
+// returns ranking number, elo
+func QueryPlayerRanking(db *sql.DB, tg_id int64) (int, int) {
+	query := `
+		SELECT rank, elo FROM (
+		SELECT RANK() OVER (ORDER BY elo) rank, elo, tg_id
+		FROM user
+		) x
+		WHERE tg_id = ?
+	`
+
+	row := db.QueryRow(query, tg_id)
+
+	var ranking, elo int
+	row.Scan(&ranking, &elo)
+	if row.Err() != nil {
+		log.Default().Println("Error getting player ranking: " + row.Err().Error())
+		return -1, -1
+	}
+	return ranking, elo
+}
+
 func QueryPlayerElo(db *sql.DB, tg_id int64, offset int) int {
 	query := `
 		SELECT elo FROM user WHERE tg_id = ?

@@ -177,7 +177,7 @@ func NewGameMessageCallback(update *tgbotapi.Update, host string) {
 
 }
 
-func NewGameMessage(queryId string, username string, top10 string) {
+func InlineQueryMessage(queryId string, username string, ranking int, elo int, total int, top10 string) {
 
 	var results []interface{}
 
@@ -209,15 +209,17 @@ func NewGameMessage(queryId string, username string, top10 string) {
 		},
 	})
 
-	results = append(results, tgbotapi.InlineQueryResultArticle{
-		ID:          "checkRank",
-		Type:        "Article",
-		Title:       "Rating",
-		Description: "My current connect 4 rating is...",
-		InputMessageContent: tgbotapi.InputTextMessageContent{
-			Text: "My current connect4 rating: " + username,
-		},
-	})
+	if ranking != -1 {
+		results = append(results, tgbotapi.InlineQueryResultArticle{
+			ID:          "checkRank",
+			Type:        "Article",
+			Title:       "Rating",
+			Description: "My current connect 4 rating is...",
+			InputMessageContent: tgbotapi.InputTextMessageContent{
+				Text: "My current connect4 rating: " + strconv.Itoa(elo) + "\n " + strconv.Itoa(ranking) + " of " + strconv.Itoa(total) + " players",
+			},
+		})
+	}
 
 	if len(top10) > 0 {
 		results = append(results, tgbotapi.InlineQueryResultArticle{
