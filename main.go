@@ -190,9 +190,9 @@ func handleInput(update *tg.Update) {
 
 			hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 			winnerName := hostName
-			winner := -1
+			winner := 1
 			if hostMove {
-				winner = 1
+				winner = -1
 				winnerName = guestName
 			}
 
