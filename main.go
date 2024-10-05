@@ -125,7 +125,8 @@ func handleInput(update *tg.Update) {
 	if update.CallbackQuery.Data == JOIN_CODE {
 		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName, env.BaseElo)
 		JoinGame(db, *update)
-		host, guest := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		guest := update.CallbackQuery.From.FirstName
 		if host == "" || guest == "" {
 			Empty(botapi, update)
 		}
