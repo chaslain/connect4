@@ -28,7 +28,7 @@ func CreateUser(db *sql.DB, tgUserId int64, name string, offset int) {
 func CreateGame(db *sql.DB, update tgbotapi.Update) {
 	date := time.Now()
 	query := "UPDATE user SET first_name = ? WHERE tg_id = ?"
-	db.Exec(query, update.ChosenInLineResult.From.FirstName, update.ChosenInLineResult.From.ID)
+	db.Exec(query, update.ChosenInlineResult.From.FirstName, update.ChosenInlineResult.From.ID)
 	query = "INSERT OR REPLACE INTO game (one_user_tg_id, date_created, hosted_message_id, move_number) VALUES (?, ?, ?, ?)"
 	_, err := db.Exec(query, update.ChosenInlineResult.From.ID, date, update.ChosenInlineResult.InlineMessageID, 0)
 	if err != nil {
@@ -40,7 +40,7 @@ func JoinGame(db *sql.DB, update tgbotapi.Update) {
 	query := "UPDATE game SET two_user_tg_id = ? WHERE hosted_message_id = ?"
 	db.Exec(query, update.CallbackQuery.From.ID, update.CallbackQuery.InlineMessageID)
 	query = "UPDATE user SET first_name = ? WHERE tg_id = ?"
-	db.Exec(query, update.ChosenInLineResult.From.FirstName, update.ChosenInLineResult.From.ID)
+	db.Exec(query, update.ChosenInlineResult.From.FirstName, update.ChosenInlineResult.From.ID)
 }
 
 func GetHostId(db *sql.DB, InlineMessageID string) int64 {
