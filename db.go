@@ -29,7 +29,7 @@ func CreateGame(db *sql.DB, update tgbotapi.Update) {
 	date := time.Now()
 	query := "UPDATE user SET first_name = ? WHERE tg_id = ?"
 	db.Exec(query, update.CallbackQuery.From.FirstName, update.CallbackQuery.From.ID)
-	query := "INSERT OR REPLACE INTO game (one_user_tg_id, date_created, hosted_message_id, move_number) VALUES (?, ?, ?, ?)"
+	query = "INSERT OR REPLACE INTO game (one_user_tg_id, date_created, hosted_message_id, move_number) VALUES (?, ?, ?, ?)"
 	_, err := db.Exec(query, update.ChosenInlineResult.From.ID, date, update.ChosenInlineResult.InlineMessageID, 0)
 	if err != nil {
 		log.Default().Println(err.Error())
@@ -39,7 +39,7 @@ func CreateGame(db *sql.DB, update tgbotapi.Update) {
 func JoinGame(db *sql.DB, update tgbotapi.Update) {
 	query := "UPDATE game SET two_user_tg_id = ? WHERE hosted_message_id = ?"
 	db.Exec(query, update.CallbackQuery.From.ID, update.CallbackQuery.InlineMessageID)
-	query := "UPDATE user SET first_name = ? WHERE tg_id = ?"
+	query = "UPDATE user SET first_name = ? WHERE tg_id = ?"
 	db.Exec(query, update.CallbackQuery.From.FirstName, update.CallbackQuery.From.ID)
 }
 
