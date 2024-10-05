@@ -40,7 +40,7 @@ func JoinGame(db *sql.DB, update tgbotapi.Update) {
 	query := "UPDATE game SET two_user_tg_id = ? WHERE hosted_message_id = ?"
 	db.Exec(query, update.CallbackQuery.From.ID, update.CallbackQuery.InlineMessageID)
 	query = "UPDATE user SET first_name = ? WHERE tg_id = ?"
-	db.Exec(query, update.ChosenInlineResult.From.FirstName, update.ChosenInlineResult.From.ID)
+	db.Exec(query, update.CallbackQuery.From.FirstName, update.CallbackQuery.From.ID)
 }
 
 func GetHostId(db *sql.DB, InlineMessageID string) int64 {
