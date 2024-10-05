@@ -201,7 +201,7 @@ func QueryTotalPlayerCount(db *sql.DB) int {
 func QueryPlayerRanking(db *sql.DB, tg_id int64) (int, int) {
 	query := `
 		SELECT rank, elo FROM (
-		SELECT RANK() OVER (ORDER BY elo) rank, elo, tg_id
+		SELECT RANK() OVER (ORDER BY elo DESC) rank, elo, tg_id
 		FROM user
 		) x
 		WHERE tg_id = ?
