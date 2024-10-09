@@ -1,6 +1,7 @@
 package main
 
 import (
+	"connect4/tg/models"
 	"log"
 	"slices"
 	"strconv"
@@ -8,69 +9,75 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func Empty(bot *tgbotapi.BotAPI, update *tgbotapi.Update) {
-	request := tgbotapi.EditMessageTextConfig{
-		BaseEdit: tgbotapi.BaseEdit{
-			InlineMessageID: update.CallbackQuery.InlineMessageID,
-			ReplyMarkup:     nil,
-		},
-		Text: "(empty)",
-	}
+type PostEditMessageTextJSONBody struct {
+	models.PostEditMessageTextJSONBody
+	Method string `json:"method"`
+}
 
-	bot.Request(request)
+type PostAnswerCallbackQueryJSONBody struct {
+	models.PostAnswerCallbackQueryJSONBody
+	Method string `json:"method"`
+}
+
+func Empty(bot *tgbotapi.BotAPI, update *tgbotapi.Update) PostEditMessageTextJSONBody {
+	return PostEditMessageTextJSONBody{
+		PostEditMessageTextJSONBody: models.PostEditMessageTextJSONBody{
+			InlineMessageId: &update.CallbackQuery.InlineMessageID,
+			ReplyMarkup:     nil,
+			Text:            "(empty)",
+		},
+		Method: "editMessageText",
+	}
 }
 
 func getGameText(host string, guest string) string {
 	return host + " (🔵) vs " + guest + "(🔴)"
 }
 
-func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string, guest string) {
-	buttons := make([]tgbotapi.InlineKeyboardButton, 2)
+func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string, guest string) PostEditMessageTextJSONBody {
+	buttons := make([]models.InlineKeyboardButton, 2)
 
-	buttons[0] = tgbotapi.InlineKeyboardButton{
+	buttons[0] = models.InlineKeyboardButton{
 		Text:         "Kick",
 		CallbackData: &KICK_CODE,
 	}
 
-	buttons[1] = tgbotapi.InlineKeyboardButton{
+	buttons[1] = models.InlineKeyboardButton{
 		Text:         "Quit",
 		CallbackData: &QUIT_CODE,
 	}
 
-	allButtons := [][]tgbotapi.InlineKeyboardButton{}
+	allButtons := [][]models.InlineKeyboardButton{}
 
 	allButtons = append(allButtons, buttons)
-	allButtons = append(allButtons, []tgbotapi.InlineKeyboardButton{{
+	allButtons = append(allButtons, []models.InlineKeyboardButton{{
 		Text:         "Play",
 		CallbackData: &PLAY_CODE,
 	}})
 
-	conf := tgbotapi.EditMessageTextConfig{
-		Text: getGameText(host, guest),
-		BaseEdit: tgbotapi.BaseEdit{
-			InlineMessageID: update.CallbackQuery.InlineMessageID,
-			ReplyMarkup: &tgbotapi.InlineKeyboardMarkup{
+	return PostEditMessageTextJSONBody{
+		PostEditMessageTextJSONBody: models.PostEditMessageTextJSONBody{
+			Text:            getGameText(host, guest),
+			InlineMessageId: &update.CallbackQuery.InlineMessageID,
+			ReplyMarkup: &models.InlineKeyboardMarkup{
 				InlineKeyboard: allButtons,
 			},
 		},
-	}
-
-	_, e := bot.Request(conf)
-	if e != nil {
-		log.Default().Println(e.Error())
+		Method: "editMessageText",
 	}
 }
-func rawGameBoard(update *tgbotapi.Update, board Board) tgbotapi.EditMessageTextConfig {
-	request := tgbotapi.EditMessageTextConfig{
-		BaseEdit: tgbotapi.BaseEdit{
-			InlineMessageID: update.CallbackQuery.InlineMessageID,
+func rawGameBoard(update *tgbotapi.Update, board Board) PostEditMessageTextJSONBody {
+	request := PostEditMessageTextJSONBody{
+		PostEditMessageTextJSONBody: models.PostEditMessageTextJSONBody{
+			InlineMessageId: &update.CallbackQuery.InlineMessageID,
 		},
+		Method: "editMessageText",
 	}
 
-	buttons := make([][]tgbotapi.InlineKeyboardButton, 7)
+	buttons := make([][]models.InlineKeyboardButton, 7)
 
 	for i := 1; i < 7; i++ {
-		column := make([]tgbotapi.InlineKeyboardButton, 7)
+		column := make([]models.InlineKeyboardButton, 7)
 		for j := 0; j < 7; j++ {
 			text := " "
 
@@ -82,14 +89,14 @@ func rawGameBoard(update *tgbotapi.Update, board Board) tgbotapi.EditMessageText
 				}
 			}
 			data := strconv.Itoa(j)
-			column[j] = tgbotapi.InlineKeyboardButton{
+			column[j] = models.InlineKeyboardButton{
 				Text:         text,
 				CallbackData: &data,
 			}
 		}
 		buttons[i] = column
 	}
-	buttons[0] = []tgbotapi.InlineKeyboardButton{
+	buttons[0] = []models.InlineKeyboardButton{
 		{
 			Text:         "Claim Win",
 			CallbackData: &CLAIM_CODE,
@@ -101,14 +108,14 @@ func rawGameBoard(update *tgbotapi.Update, board Board) tgbotapi.EditMessageText
 	}
 
 	slices.Reverse(buttons)
-	request.BaseEdit.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
+	request.ReplyMarkup = &models.InlineKeyboardMarkup{
 		InlineKeyboard: buttons,
 	}
 
 	return request
 }
 
-func GameBoard(update *tgbotapi.Update, board Board, host string, guest string, moveNum int) {
+func GetGameBoard(update *tgbotapi.Update, board Board, host string, guest string, moveNum int) PostEditMessageTextJSONBody {
 	request := rawGameBoard(update, board)
 	playerMove := "🔴 " + guest + " to move"
 	if moveNum%2 == 0 {
@@ -116,65 +123,50 @@ func GameBoard(update *tgbotapi.Update, board Board, host string, guest string, 
 	}
 
 	request.Text = getGameText(host, guest) + "\n" + playerMove
-
-	resp, e := botapi.Request(request)
-
-	if e != nil {
-		log.Default().Println(e.Error())
-	}
-
-	if !resp.Ok {
-		log.Default().Println(strconv.Itoa(resp.ErrorCode) + " " + resp.Description)
-	}
+	return request
 }
 
-func FinishDrawnGame(update *tgbotapi.Update, board Board, host string, guest string) {
+func FinishDrawnGame(update *tgbotapi.Update, board Board, host string, guest string) PostEditMessageTextJSONBody {
 	request := rawGameBoard(update, board)
 	request.Text = getGameText(host, guest) + "\n" + "Drawn"
-	botapi.Request(request)
+	return request
 }
 
-func FinishGame(update *tgbotapi.Update, board Board, winner string, host string, guest string) {
+func FinishGame(update *tgbotapi.Update, board Board, winner string, host string, guest string) PostEditMessageTextJSONBody {
 	request := rawGameBoard(update, board)
 	request.Text = getGameText(host, guest) + "\n" + winner + " Wins!"
-	botapi.Request(request)
+	return request
 }
 
-func NewGameMessageCallback(update *tgbotapi.Update, host string) {
-	buttons := make([]tgbotapi.InlineKeyboardButton, 2)
-	buttons[0] = tgbotapi.InlineKeyboardButton{
+func NewGameMessageCallback(update *tgbotapi.Update, host string) PostEditMessageTextJSONBody {
+	buttons := make([]models.InlineKeyboardButton, 2)
+	buttons[0] = models.InlineKeyboardButton{
 		Text:         "Join",
 		CallbackData: &JOIN_CODE,
 	}
 
-	buttons[1] = tgbotapi.InlineKeyboardButton{
+	buttons[1] = models.InlineKeyboardButton{
 		Text:         "Quit",
 		CallbackData: &QUIT_CODE,
 	}
 
-	allButtons := [][]tgbotapi.InlineKeyboardButton{}
+	allButtons := [][]models.InlineKeyboardButton{}
 
 	allButtons = append(allButtons, buttons)
 
-	request := tgbotapi.EditMessageTextConfig{
-		BaseEdit: tgbotapi.BaseEdit{
-			InlineMessageID: update.CallbackQuery.InlineMessageID,
-			ReplyMarkup: &tgbotapi.InlineKeyboardMarkup{
+	request := PostEditMessageTextJSONBody{
+		PostEditMessageTextJSONBody: models.PostEditMessageTextJSONBody{
+			InlineMessageId: &update.CallbackQuery.InlineMessageID,
+			ReplyMarkup: &models.InlineKeyboardMarkup{
 				InlineKeyboard: allButtons,
 			},
+
+			Text: host + " wants to play connect 4",
 		},
-		Text: host + " wants to play connect 4",
+		Method: "editMessageText",
 	}
 
-	resp, e := botapi.Request(request)
-	if e != nil {
-		log.Default().Println(e.Error())
-	}
-
-	if !resp.Ok {
-		log.Default().Println(strconv.Itoa(resp.ErrorCode) + " " + resp.Description)
-	}
-
+	return request
 }
 
 func InlineQueryMessage(queryId string, username string, ranking int, elo int, total int, top10 string) {
@@ -247,7 +239,14 @@ func InlineQueryMessage(queryId string, username string, ranking int, elo int, t
 	}
 }
 
-func SendInvalid(update *tgbotapi.Update, message string) {
-	config := tgbotapi.NewCallbackWithAlert(update.CallbackQuery.ID, message)
-	botapi.Request(config)
+func SendInvalid(update *tgbotapi.Update, message string) PostAnswerCallbackQueryJSONBody {
+	t := true
+	return PostAnswerCallbackQueryJSONBody{
+		PostAnswerCallbackQueryJSONBody: models.PostAnswerCallbackQueryJSONBody{
+			ShowAlert:       &t,
+			Text:            &message,
+			CallbackQueryId: update.CallbackQuery.ID,
+		},
+		Method: "answerCallbackQuery",
+	}
 }

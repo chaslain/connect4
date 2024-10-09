@@ -1,0 +1,8 @@
+package: models
+generate: 
+  models: true
+  client: true
+output: ../tg/models/models.gen.go
+output-options:
+  # NOTE that this is only required for the `Unreferenced` type
+  skip-prune: true

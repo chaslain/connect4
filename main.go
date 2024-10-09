@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"io"
 	"log"
 	"os"
@@ -110,18 +111,27 @@ func listener(context *gin.Context) {
 		ranking, elo := QueryPlayerRanking(db, update.InlineQuery.From.ID)
 		total := QueryTotalPlayerCount(db)
 		InlineQueryMessage(update.InlineQuery.ID, update.SentFrom().FirstName, ranking, elo, total, Top10LeaderBoard(db))
+		context.Status(204)
 	} else if update.CallbackQuery != nil {
-		handleInput(&update)
+		response := handleInput(&update)
+		if response != nil {
+			context.JSON(200, response)
+			if env.Debug {
+				j, _ := json.Marshal(response)
+				log.Default().Println(string(j))
+			}
+		}
+		return
 	} else if update.ChosenInlineResult != nil {
 		if update.ChosenInlineResult.ResultID == "connect4" {
 			CreateUser(db, update.ChosenInlineResult.From.ID, update.ChosenInlineResult.From.FirstName, env.BaseElo)
 			CreateGame(db, update)
 		}
+		context.Status(204)
 	}
-	context.Status(204)
 }
 
-func handleInput(update *tg.Update) {
+func handleInput(update *tg.Update) interface{} {
 	if update.CallbackQuery.Data == JOIN_CODE {
 		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName, env.BaseElo)
 		JoinGame(db, *update)
@@ -131,58 +141,51 @@ func handleInput(update *tg.Update) {
 			Empty(botapi, update)
 		}
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
-		PlayKickQuit(botapi, update, host+" "+parenthesizeInt(a), guest+" "+parenthesizeInt(b))
+		return PlayKickQuit(botapi, update, host+" "+parenthesizeInt(a), guest+" "+parenthesizeInt(b))
 	} else if update.CallbackQuery.Data == QUIT_CODE {
 		host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		hostLeft, valid := LeaveGame(db, *update)
 		if !valid {
-			SendInvalid(update, "Nah fam")
-			return
+			return SendInvalid(update, "Nah fam")
 		}
 		if hostLeft {
-			Empty(botapi, update)
+			return Empty(botapi, update)
 		} else {
-			NewGameMessageCallback(update, host)
+			return NewGameMessageCallback(update, host)
 		}
 	} else if update.CallbackQuery.Data == PLAY_CODE {
 		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
 		if hostId != update.CallbackQuery.From.ID {
-			SendInvalid(update, "Nah fam")
-			return
+			return SendInvalid(update, "Nah fam")
 		}
 		guestId := GetGuestId(db, update.CallbackQuery.InlineMessageID)
 		if guestId == 0 {
-			SendInvalid(update, "They left as soon as you hit join. Sry")
-			return
+			return SendInvalid(update, "They left as soon as you hit join. Sry")
 		}
 		board := EmptyBoard()
 		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board))
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
-		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), 0)
+		return GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), 0)
 	} else if update.CallbackQuery.Data == KICK_CODE {
 		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
 		if hostId != update.CallbackQuery.From.ID {
-			SendInvalid(update, "Nah fam")
-			return
+			return SendInvalid(update, "Nah fam")
 		}
 
-		NewGameMessageCallback(update, update.CallbackQuery.From.FirstName)
+		return NewGameMessageCallback(update, update.CallbackQuery.From.FirstName)
 	} else if update.CallbackQuery.Data == CLAIM_CODE {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
 		hostMove := move_number%2 == 1
 
 		if update.CallbackQuery.From.ID != host && update.CallbackQuery.From.ID != guest {
-			SendInvalid(update, "Nah fam")
-			return
+			return SendInvalid(update, "Nah fam")
 		}
 
 		if !hostMove && update.CallbackQuery.From.ID == guest {
-			SendInvalid(update, "Nah fam")
-			return
+			return SendInvalid(update, "Nah fam")
 		} else if hostMove && update.CallbackQuery.From.ID == host {
-			SendInvalid(update, "Nah fam")
-			return
+			return SendInvalid(update, "Nah fam")
 		}
 
 		moveTime := ReadGameLastMove(db, update.CallbackQuery.InlineMessageID)
@@ -201,17 +204,16 @@ func handleInput(update *tg.Update) {
 			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, winner, env.EloK, env.BaseElo)
 			hostName = getFinishData(hostName, olda, a)
 			guestName = getFinishData(guestName, oldb, b)
-			FinishGame(update, GetGame(game), winnerName, hostName, guestName)
+			return FinishGame(update, GetGame(game), winnerName, hostName, guestName)
 		} else {
-			SendInvalid(update, "You must wait "+strconv.Itoa(env.KillAge)+" minutes to claim your win.")
+			return SendInvalid(update, "You must wait "+strconv.Itoa(env.KillAge)+" minutes to claim your win.")
 		}
 
 	} else if update.CallbackQuery.Data == RESIGN_CODE {
 		host, guest, game, _ := ReadGame(db, update.CallbackQuery.InlineMessageID)
 
 		if update.CallbackQuery.From.ID != host && update.CallbackQuery.From.ID != guest {
-			SendInvalid(update, "Nah fam")
-			return
+			return SendInvalid(update, "Nah fam")
 		}
 
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
@@ -221,25 +223,21 @@ func handleInput(update *tg.Update) {
 			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, -1, env.EloK, env.BaseElo)
 			hostName = getFinishData(hostName, olda, a)
 			guestName = getFinishData(guestName, oldb, b)
-			FinishGame(update, GetGame(game), guestName, hostName, guestName)
+			return FinishGame(update, GetGame(game), guestName, hostName, guestName)
 		} else {
 			a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, game, 1, env.EloK, env.BaseElo)
 			hostName = getFinishData(hostName, olda, a)
 			guestName = getFinishData(guestName, oldb, b)
-			FinishGame(update, GetGame(game), hostName, hostName, guestName)
+			return FinishGame(update, GetGame(game), hostName, hostName, guestName)
 		}
-		return
-
 	} else {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
 		hostMove := move_number%2 == 1
 
 		if update.CallbackQuery.From.ID != host && hostMove {
-			SendInvalid(update, "It is not your turn!")
-			return
+			return SendInvalid(update, "It is not your turn!")
 		} else if !hostMove && update.CallbackQuery.From.ID != guest {
-			SendInvalid(update, "It is not your turn!")
-			return
+			return SendInvalid(update, "It is not your turn!")
 		}
 
 		board := GetGame(game)
@@ -250,36 +248,32 @@ func handleInput(update *tg.Update) {
 		if hostMove {
 			if !PlayMove(&board, column, 1) {
 				SendInvalid(update, "Invalid move!")
-				return
+				return nil
 			}
 			if CheckForWin(&board, column, 1) {
 				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
 				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 1, env.EloK, env.BaseElo)
 				hostName = getFinishData(hostName, olda, a)
 				guestName = getFinishData(guestName, oldb, b)
-				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
-				return
+				return FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
 			}
 		} else {
 			if !PlayMove(&board, column, 2) {
-				SendInvalid(update, "Invalid move!")
-				return
+				return SendInvalid(update, "Invalid move!")
 			}
 			if CheckForWin(&board, column, 2) {
 				olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
 				a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), -1, env.EloK, env.BaseElo)
 				hostName = getFinishData(hostName, olda, a)
 				guestName = getFinishData(guestName, oldb, b)
-				FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
-				return
+				return FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
 			} else {
 				if move_number == 42 {
 					olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
 					a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 0, env.EloK, env.BaseElo)
 					hostName = getFinishData(hostName, olda, a)
 					guestName = getFinishData(guestName, oldb, b)
-					FinishDrawnGame(update, board, hostName, guestName)
-					return
+					return FinishDrawnGame(update, board, hostName, guestName)
 				}
 			}
 		}
@@ -288,8 +282,11 @@ func handleInput(update *tg.Update) {
 
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 		UpdateState(db, update.CallbackQuery.InlineMessageID, game)
-		GameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number)
+		result := GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number)
+		return &result
 	}
+
+	return nil
 }
 
 func initConfig() {
