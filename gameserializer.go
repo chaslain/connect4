@@ -80,12 +80,11 @@ func PlayMove(board *Board, column int, player int) bool {
 
 func CheckForWin(board *Board, column int, player int) bool {
 	row := len(board.Columns[column].Rows) - 1
-	target := board.Columns[column].Rows[row]
 
-	return checkDiagnoalDescending(board, column, row, target) ||
-		checkHorizontal(board, row, target) ||
-		checkDiagnoalAscending(board, column, row, target) ||
-		checkVertical(board, column, row, target)
+	return checkDiagnoalDescending(board, column, row, player) ||
+		checkHorizontal(board, row, player) ||
+		checkDiagnoalAscending(board, column, row, player) ||
+		checkVertical(board, column, row, player)
 }
 
 func checkHorizontal(board *Board, row int, target int) bool {
