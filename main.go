@@ -163,7 +163,7 @@ func handleInput(update *tg.Update) interface{} {
 			return SendInvalid(update, "They left as soon as you hit join. Sry")
 		}
 		board := EmptyBoard()
-		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board))
+		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 0)
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 		return GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), 0)
@@ -176,15 +176,15 @@ func handleInput(update *tg.Update) interface{} {
 		return NewGameMessageCallback(update, update.CallbackQuery.From.FirstName)
 	} else if update.CallbackQuery.Data == CLAIM_CODE {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
-		hostMove := move_number%2 == 1
+		hostToMove := move_number%2 == 0
 
 		if update.CallbackQuery.From.ID != host && update.CallbackQuery.From.ID != guest {
 			return SendInvalid(update, "Nah fam")
 		}
 
-		if !hostMove && update.CallbackQuery.From.ID == guest {
+		if !hostToMove && update.CallbackQuery.From.ID == guest {
 			return SendInvalid(update, "Nah fam")
-		} else if hostMove && update.CallbackQuery.From.ID == host {
+		} else if hostToMove && update.CallbackQuery.From.ID == host {
 			return SendInvalid(update, "Nah fam")
 		}
 
@@ -194,9 +194,9 @@ func handleInput(update *tg.Update) interface{} {
 
 			hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 			winnerName := hostName
-			winner := -1
-			if hostMove {
-				winner = 1
+			winner := 1
+			if hostToMove {
+				winner = -1
 				winnerName = guestName
 			}
 
@@ -232,7 +232,7 @@ func handleInput(update *tg.Update) interface{} {
 		}
 	} else {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
-		hostMove := move_number%2 == 1
+		hostMove := move_number%2 == 0
 
 		if update.CallbackQuery.From.ID != host && hostMove {
 			return SendInvalid(update, "It is not your turn!")
@@ -268,7 +268,7 @@ func handleInput(update *tg.Update) interface{} {
 				guestName = getFinishData(guestName, oldb, b)
 				return FinishGame(update, board, update.CallbackQuery.From.FirstName, hostName, guestName)
 			} else {
-				if move_number == 42 {
+				if move_number == 41 {
 					olda, oldb := QueryElo(db, update.CallbackQuery.InlineMessageID)
 					a, b := CloseGame(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 0, env.EloK, env.BaseElo)
 					hostName = getFinishData(hostName, olda, a)
@@ -281,7 +281,7 @@ func handleInput(update *tg.Update) interface{} {
 		game = GetSerial(board)
 
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
-		UpdateState(db, update.CallbackQuery.InlineMessageID, game)
+		UpdateState(db, update.CallbackQuery.InlineMessageID, game, move_number+1)
 		result := GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number)
 		return &result
 	}

@@ -126,14 +126,14 @@ func LeaveGame(db *sql.DB, update tgbotapi.Update) (bool, bool) {
 	}
 }
 
-func UpdateState(db *sql.DB, gameId string, serialized string) {
-	query := "UPDATE game SET game_board = ?, move_number = move_number+1, last_move = ? WHERE hosted_message_id = ?"
-	db.Exec(query, serialized, time.Now().UTC(), gameId)
+func UpdateState(db *sql.DB, gameId string, serialized string, move_number int) {
+	query := "UPDATE game SET game_board = ?, move_number = ?, last_move = ? WHERE hosted_message_id = ?"
+	db.Exec(query, serialized, move_number, time.Now().UTC(), gameId)
 }
 
 // if the host wins, pass 1 for winner. else, -1. 0 for draw
 func CloseGame(db *sql.DB, gameId string, serialized string, winner int, k float32, offset int) (int, int) {
-	UpdateState(db, gameId, serialized)
+	UpdateState(db, gameId, serialized, 0)
 	return handleElo(db, gameId, winner, k, offset)
 }
 

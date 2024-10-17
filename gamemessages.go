@@ -118,7 +118,7 @@ func rawGameBoard(update *tgbotapi.Update, board Board) PostEditMessageTextJSONB
 func GetGameBoard(update *tgbotapi.Update, board Board, host string, guest string, moveNum int) PostEditMessageTextJSONBody {
 	request := rawGameBoard(update, board)
 	playerMove := "🔴 " + guest + " to move"
-	if moveNum%2 == 0 {
+	if moveNum%2 == 1 {
 		playerMove = "🔵 " + host + " to move"
 	}
 
