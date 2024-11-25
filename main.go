@@ -166,7 +166,7 @@ func handleInput(update *tg.Update) interface{} {
 		UpdateState(db, update.CallbackQuery.InlineMessageID, GetSerial(board), 0)
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
-		return GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), 0)
+		return GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), 1)
 	} else if update.CallbackQuery.Data == KICK_CODE {
 		hostId := GetHostId(db, update.CallbackQuery.InlineMessageID)
 		if hostId != update.CallbackQuery.From.ID {
