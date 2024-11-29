@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/cristalhq/aconfig"
@@ -37,8 +36,6 @@ var botapi *tg.BotAPI
 
 var db *sql.DB
 
-var m *sync.Mutex
-
 // not consts as they are passed as references downstream.
 // effectively consts.
 var QUIT_CODE string = "q"
@@ -49,7 +46,6 @@ var CLAIM_CODE string = "c"
 var RESIGN_CODE string = "r"
 
 func main() {
-	m = new(sync.Mutex)
 	initConfig()
 	var dbError error
 	db, dbError = InitDb(env.SchemaDsn)
@@ -96,8 +92,6 @@ func informWebhook(url string, publickey string) {
 }
 
 func listener(context *gin.Context) {
-	m.Lock()
-	defer m.Unlock()
 	if env.Debug {
 		chars, _ := io.ReadAll(context.Request.Body)
 		log.Default().Println(string(chars))
