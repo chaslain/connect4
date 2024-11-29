@@ -227,17 +227,21 @@ func handleInput(update *tg.Update) interface{} {
 	} else {
 		host, guest, game, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
 		hostMove := move_number%2 == 0
+		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
+		board := GetGame(game)
+		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 
 		if update.CallbackQuery.From.ID != host && hostMove {
-			return SendInvalid(update, "It is not your turn!")
+			result := GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number-1)
+			result.Text = result.Text + " (Manually updated board)"
+			return result
 		} else if !hostMove && update.CallbackQuery.From.ID != guest {
-			return SendInvalid(update, "It is not your turn!")
+			result := GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number-1)
+			result.Text = result.Text + " (Manually updated board)"
+			return result
 		}
 
-		board := GetGame(game)
 		column, _ := strconv.Atoi(update.CallbackQuery.Data)
-
-		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 
 		if hostMove {
 			if !PlayMove(&board, column, 1) {
@@ -274,13 +278,10 @@ func handleInput(update *tg.Update) interface{} {
 
 		game = GetSerial(board)
 
-		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
 		UpdateState(db, update.CallbackQuery.InlineMessageID, game, move_number+1)
 		result := GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number)
 		return &result
 	}
-
-	return nil
 }
 
 func initConfig() {
