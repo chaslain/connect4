@@ -31,7 +31,7 @@ func Empty(bot *tgbotapi.BotAPI, update *tgbotapi.Update) PostEditMessageTextJSO
 }
 
 func getGameText(host string, guest string) string {
-	return host + " (🔵) vs " + guest + " (🔴)"
+	return host + " (🟢) vs " + guest + " (🔴)"
 }
 
 func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string, guest string) PostEditMessageTextJSONBody {
@@ -83,7 +83,7 @@ func rawGameBoard(update *tgbotapi.Update, board Board) PostEditMessageTextJSONB
 
 			if len(board.Columns[j].Rows) > i-1 {
 				if board.Columns[j].Rows[i-1] == 1 {
-					text = "🔵"
+					text = "🟢"
 				} else {
 					text = "🔴"
 				}
@@ -119,7 +119,7 @@ func GetGameBoard(update *tgbotapi.Update, board Board, host string, guest strin
 	request := rawGameBoard(update, board)
 	playerMove := "🔴 " + guest + " to move"
 	if moveNum%2 == 1 {
-		playerMove = "🔵 " + host + " to move"
+		playerMove = "🟢 " + host + " to move"
 	}
 
 	request.Text = getGameText(host, guest) + "\n" + playerMove
