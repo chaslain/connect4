@@ -31,7 +31,7 @@ func Empty(bot *tgbotapi.BotAPI, update *tgbotapi.Update) PostEditMessageTextJSO
 }
 
 func getGameText(host string, guest string) string {
-	return host + " (🔵) vs " + guest + "(🔴)"
+	return host + " (🔵) vs " + guest + " (🔴)"
 }
 
 func PlayKickQuit(bot *tgbotapi.BotAPI, update *tgbotapi.Update, host string, guest string) PostEditMessageTextJSONBody {
