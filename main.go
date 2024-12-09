@@ -128,6 +128,10 @@ func listener(context *gin.Context) {
 func handleInput(update *tg.Update) interface{} {
 	if update.CallbackQuery.Data == JOIN_CODE {
 		CreateUser(db, update.CallbackQuery.From.ID, update.CallbackQuery.From.FirstName, env.BaseElo)
+		_, _, _, move_number := ReadGame(db, update.CallbackQuery.InlineMessageID)
+		if move_number > 0 {
+			return SendInvalid(update, "Game already in progress.")
+		}
 		JoinGame(db, *update)
 		host, _ := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		guest := update.CallbackQuery.From.FirstName
@@ -230,6 +234,10 @@ func handleInput(update *tg.Update) interface{} {
 		hostName, guestName := GetPlayerNames(db, update.CallbackQuery.InlineMessageID)
 		board := GetGame(game)
 		a, b := QueryElo(db, update.CallbackQuery.InlineMessageID)
+
+		if host != update.CallbackQuery.From.ID && guest != update.CallbackQuery.From.ID {
+			return SendInvalid(update, "No")
+		}
 
 		if update.CallbackQuery.From.ID != host && hostMove {
 			result := GetGameBoard(update, board, hostName+" "+parenthesizeInt(a), guestName+" "+parenthesizeInt(b), move_number-1)

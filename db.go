@@ -102,15 +102,20 @@ func GetPlayerNames(db *sql.DB, InlineMessageID string) (string, string) {
 // first is true if the host left the game, false if guest.
 // the other is true if the leave request was valid at all. No one leaves the game if it is invalid.
 func LeaveGame(db *sql.DB, update tgbotapi.Update) (bool, bool) {
-	query := "SELECT one_user_tg_id, two_user_tg_id FROM game WHERE hosted_message_id = ?"
+	query := "SELECT one_user_tg_id, two_user_tg_id, move_number FROM game WHERE hosted_message_id = ?"
 	row := db.QueryRow(query, update.CallbackQuery.InlineMessageID)
 	if row == nil {
 		return false, false
 	}
 	var one int64
 	var two int64
+	var move_number int64
 
-	row.Scan(&one, &two)
+	row.Scan(&one, &two, &move_number)
+
+	if move_number > 0 {
+		return false, false
+	}
 
 	var updatequery string
 	if update.CallbackQuery.From.ID == one {
