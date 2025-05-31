@@ -1,4 +1,3 @@
 connect4
 resources/
 *.db
-models.gen.go
